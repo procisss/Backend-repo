@@ -29,4 +29,4 @@ app.use('/api/alerts',    require('./routes/alerts'));
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 app.use((req, res) => res.status(404).json({ message: `Route ${req.method} ${req.path} not found.` }));
 
-app.listen(PORT, () => console.log(`🚀  ProCIS API running → http://localhost:${PORT}`));
+module.exports = app;
