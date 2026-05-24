@@ -29,8 +29,6 @@ function requireAdmin(req, res, next) {
   });
 }
 
-module.exports = { requireAuth, requireAdmin };
-
 // DELETE /api/auth/delete-account
 router.delete('/delete-account', requireAuth, async (req, res) => {
   try {
@@ -53,3 +51,5 @@ router.delete('/delete-account', requireAuth, async (req, res) => {
     return res.status(500).json({ message: 'Server error.' });
   }
 });
+
+module.exports = { requireAuth, requireAdmin };
