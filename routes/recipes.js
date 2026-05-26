@@ -31,8 +31,6 @@ router.post('/', async (req, res) => {
   const { name, category, sellingPrice, sellingUnit, description, ingredients } = req.body;
   if (!name || !category)
     return res.status(400).json({ message: 'Name and category are required.' });
-  if (!ingredients || ingredients.length === 0)
-    return res.status(400).json({ message: 'Add at least one ingredient.' });
   try {
     const db = await getDb();
     const existing = await db.execute(`SELECT id FROM recipes WHERE user_id = ${req.user.id} AND LOWER(name) = LOWER('${name.trim().replace(/'/g, "''")}')`);
@@ -57,8 +55,6 @@ router.put('/:id', async (req, res) => {
   const { name, category, sellingPrice, sellingUnit, description, ingredients } = req.body;
   if (!name || !category)
     return res.status(400).json({ message: 'Name and category are required.' });
-  if (!ingredients || ingredients.length === 0)
-    return res.status(400).json({ message: 'Add at least one ingredient.' });
   try {
     const db = await getDb();
     const owner = await db.execute(`SELECT id FROM recipes WHERE id = ${id} AND user_id = ${req.user.id}`);
