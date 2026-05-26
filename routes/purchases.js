@@ -57,19 +57,19 @@ router.post('/', async (req, res) => {
       await db.execute({ sql: `INSERT INTO restock_items (restock_purchase_id, inventory_id, name, quantity, unit, total_cost) VALUES (?, ?, ?, ?, ?, ?)`, args: [restockId, invId, nameClean, qty, unit, +cost.toFixed(2)] });
 
       if (invId) {
-        const existing = await db.execute(`SELECT id, stock_price FROM inventory WHERE id = ${invId} AND user_id = ${req.user.id}`);
+        const existing = await db.execute(`SELECT id, stock_price FROM ingredient_inventory WHERE id = ${invId} AND user_id = ${req.user.id}`);
         if (existing.rows.length) {
           const oldPrice = existing.rows[0].stock_price || 0;
-          await db.execute({ sql: `UPDATE inventory SET quantity = quantity + ?, stock_price = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`, args: [qty, +(oldPrice + cost).toFixed(2), invId, req.user.id] });
+          await db.execute({ sql: `UPDATE ingredient_inventory SET quantity = quantity + ?, stock_price = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`, args: [qty, +(oldPrice + cost).toFixed(2), invId, req.user.id] });
         }
       } else {
-        const nameMatch = await db.execute(`SELECT id, stock_price FROM inventory WHERE user_id = ${req.user.id} AND LOWER(TRIM(name)) = LOWER(TRIM('${nameClean.replace(/'/g, "''")}'))`);
+        const nameMatch = await db.execute(`SELECT id, stock_price FROM ingredient_inventory WHERE user_id = ${req.user.id} AND LOWER(TRIM(name)) = LOWER(TRIM('${nameClean.replace(/'/g, "''")}'))`);
         if (nameMatch.rows.length) {
           const existId  = nameMatch.rows[0].id;
           const oldPrice = nameMatch.rows[0].stock_price || 0;
-          await db.execute({ sql: `UPDATE inventory SET quantity = quantity + ?, stock_price = ?, updated_at = datetime('now') WHERE id = ?`, args: [qty, +(oldPrice + cost).toFixed(2), existId] });
+          await db.execute({ sql: `UPDATE ingredient_inventory SET quantity = quantity + ?, stock_price = ?, updated_at = datetime('now') WHERE id = ?`, args: [qty, +(oldPrice + cost).toFixed(2), existId] });
         } else {
-          await db.execute({ sql: `INSERT INTO inventory (user_id, name, category, quantity, unit, stock_price, min_stock) VALUES (?, ?, 'Others', ?, ?, ?, 0)`, args: [req.user.id, nameClean, qty, unit, +cost.toFixed(2)] });
+          await db.execute({ sql: `INSERT INTO ingredient_inventory (user_id, name, category, quantity, unit, stock_price, min_stock) VALUES (?, ?, 'Others', ?, ?, ?, 0)`, args: [req.user.id, nameClean, qty, unit, +cost.toFixed(2)] });
         }
       }
     }
