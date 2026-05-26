@@ -117,8 +117,8 @@ router.post('/', async (req, res) => {
           await db.execute({
             sql: `
               INSERT INTO inventory
-              (user_id, name, quantity, unit, stock_price, min_stock)
-              VALUES (?, ?, ?, ?, ?, 0)
+              (user_id, name, category, quantity, unit, stock_price, min_stock)
+              VALUES (?, ?, 'General', ?, ?, ?, 0)
             `,
             args: [
               req.user.id,
