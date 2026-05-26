@@ -4,11 +4,20 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/pos/products
+// GET /api/pos/products — includes stock_on_hand from product_inventory
 router.get('/products', async (req, res) => {
   try {
     const db     = await getDb();
-    const result = await db.execute(`SELECT id, name, category, selling_price, description FROM recipes WHERE user_id = ${req.user.id} ORDER BY category, name`);
+    const result = await db.execute(
+      `SELECT r.id, r.name, r.category, r.selling_price, r.description,
+              COALESCE(pi.quantity, -1) as stock_on_hand,
+              COALESCE(pi.min_stock, 0) as min_stock,
+              pi.id as product_inventory_id
+       FROM recipes r
+       LEFT JOIN product_inventory pi ON pi.recipe_id = r.id AND pi.user_id = r.user_id
+       WHERE r.user_id = ${req.user.id}
+       ORDER BY r.category, r.name`
+    );
     return res.json({ products: result.rows });
   } catch (err) {
     console.error('[GET /pos/products]', err);
@@ -37,13 +46,20 @@ router.post('/orders', async (req, res) => {
       const subtotal = item.unitPrice * item.quantity;
       await db.execute({ sql: `INSERT INTO order_items (order_id, recipe_id, name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)`, args: [orderId, item.recipeId, item.name, item.quantity, item.unitPrice, +subtotal.toFixed(2)] });
     }
-    // Auto-deduct ingredients from main inventory
+    // Auto-deduct ingredients from ingredient inventory
     for (const item of items) {
-      const ingResult = await db.execute(`SELECT ri.inventory_id, ri.quantity as ing_qty FROM recipe_ingredients ri WHERE ri.recipe_id = ${item.recipeId} AND ri.inventory_id IS NOT NULL`);
+      const ingResult = await db.execute(`SELECT ri.ingredient_inventory_id, ri.quantity as ing_qty FROM recipe_ingredients ri WHERE ri.recipe_id = ${item.recipeId} AND ri.ingredient_inventory_id IS NOT NULL`);
       for (const ing of ingResult.rows) {
         const deductQty = parseFloat(ing.ing_qty) * item.quantity;
-        await db.execute({ sql: `UPDATE inventory SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') WHERE id = ?`, args: [deductQty, ing.inventory_id] });
+        await db.execute({ sql: `UPDATE ingredient_inventory SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') WHERE id = ?`, args: [deductQty, ing.ingredient_inventory_id] });
       }
+    }
+    // Also deduct from product_inventory (pre-made stock)
+    for (const item of items) {
+      await db.execute({
+        sql: `UPDATE product_inventory SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') WHERE recipe_id = ? AND user_id = ?`,
+        args: [item.quantity, item.recipeId, req.user.id]
+      });
     }
     return res.status(201).json({ message: 'Order completed successfully.', orderId, total: +total.toFixed(2), change: +change.toFixed(2) });
   } catch (err) {

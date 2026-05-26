@@ -61,6 +61,20 @@ async function initTables() {
       updated_at  TEXT    DEFAULT (datetime('now'))
     )`,
 
+    // ── Product Inventory (pre-made stock) ──
+    `CREATE TABLE IF NOT EXISTS product_inventory (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL,
+      recipe_id   INTEGER,
+      name        TEXT    NOT NULL,
+      category    TEXT    NOT NULL DEFAULT 'General',
+      quantity    REAL    NOT NULL DEFAULT 0,
+      unit        TEXT    NOT NULL DEFAULT 'pcs',
+      min_stock   REAL    NOT NULL DEFAULT 0,
+      created_at  TEXT    DEFAULT (datetime('now')),
+      updated_at  TEXT    DEFAULT (datetime('now'))
+    )`,
+
     // ── Recipes ──
     `CREATE TABLE IF NOT EXISTS recipes (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,

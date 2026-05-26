@@ -13,6 +13,7 @@ app.use(express.json());
 
 app.use('/api/auth',      require('./routes/auth'));
 app.use('/api/inventory',            require('./routes/inventory'));
+app.use('/api/product-inventory',    require('./routes/productInventory'));
 
 app.use('/api/recipes',   require('./routes/recipes'));
 app.use('/api/pos',       require('./routes/pos'));
