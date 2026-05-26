@@ -12,7 +12,8 @@ app.use(cors({
 app.use(express.json());
 
 app.use('/api/auth',      require('./routes/auth'));
-app.use('/api/inventory', require('./routes/inventory'));
+app.use('/api/inventory',            require('./routes/inventory'));
+app.use('/api/ingredient-inventory', require('./routes/ingredientInventory'));
 app.use('/api/recipes',   require('./routes/recipes'));
 app.use('/api/pos',       require('./routes/pos'));
 app.use('/api/purchases', require('./routes/purchases'));

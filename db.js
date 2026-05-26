@@ -47,12 +47,26 @@ async function initTables() {
       updated_at  TEXT    DEFAULT (datetime('now'))
     )`,
 
+    // ── Ingredient Inventory ──
+    `CREATE TABLE IF NOT EXISTS ingredient_inventory (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER NOT NULL,
+      name        TEXT    NOT NULL,
+      category    TEXT    NOT NULL DEFAULT 'General',
+      quantity    REAL    NOT NULL DEFAULT 0,
+      unit        TEXT    NOT NULL DEFAULT 'pcs',
+      stock_price REAL    NOT NULL DEFAULT 0,
+      min_stock   REAL    NOT NULL DEFAULT 0,
+      created_at  TEXT    DEFAULT (datetime('now')),
+      updated_at  TEXT    DEFAULT (datetime('now'))
+    )`,
+
     // ── Recipes ──
     `CREATE TABLE IF NOT EXISTS recipes (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id       INTEGER NOT NULL,
       name          TEXT    NOT NULL,
-      category      TEXT    NOT NULL,
+      product_id    INTEGER,
       selling_price REAL    NOT NULL DEFAULT 0,
       selling_unit  TEXT    NOT NULL DEFAULT 'pcs',
       description   TEXT,
@@ -61,12 +75,12 @@ async function initTables() {
     )`,
 
     `CREATE TABLE IF NOT EXISTS recipe_ingredients (
-      id           INTEGER PRIMARY KEY AUTOINCREMENT,
-      recipe_id    INTEGER NOT NULL,
-      inventory_id INTEGER,
-      name         TEXT    NOT NULL,
-      quantity     REAL    NOT NULL DEFAULT 0,
-      unit         TEXT    NOT NULL DEFAULT 'pcs'
+      id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipe_id               INTEGER NOT NULL,
+      ingredient_inventory_id INTEGER,
+      name                    TEXT    NOT NULL,
+      quantity                REAL    NOT NULL DEFAULT 0,
+      unit                    TEXT    NOT NULL DEFAULT 'pcs'
     )`,
 
     // ── Orders (POS) ──

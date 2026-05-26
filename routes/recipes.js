@@ -13,7 +13,7 @@ async function getIngredients(db, recipeId) {
 router.get('/', async (req, res) => {
   try {
     const db     = await getDb();
-    const result = await db.execute(`SELECT * FROM recipes WHERE user_id = ${req.user.id} ORDER BY name ASC`);
+    const result = await db.execute(`SELECT r.*, inv.name as product_name FROM recipes r LEFT JOIN inventory inv ON inv.id = r.product_id WHERE r.user_id = ${req.user.id} ORDER BY r.name ASC`);
     if (!result.rows.length) return res.json({ recipes: [] });
     const recipes = await Promise.all(result.rows.map(async recipe => {
       const ingredients = await getIngredients(db, recipe.id);
@@ -28,9 +28,9 @@ router.get('/', async (req, res) => {
 
 // POST /api/recipes
 router.post('/', async (req, res) => {
-  const { name, category, sellingPrice, sellingUnit, description, ingredients } = req.body;
-  if (!name || !category)
-    return res.status(400).json({ message: 'Name and category are required.' });
+  const { name, productId, sellingPrice, sellingUnit, description, ingredients } = req.body;
+  if (!name)
+    return res.status(400).json({ message: 'Recipe name is required.' });
   if (!ingredients || ingredients.length === 0)
     return res.status(400).json({ message: 'Add at least one ingredient.' });
   try {
@@ -38,11 +38,11 @@ router.post('/', async (req, res) => {
     const existing = await db.execute(`SELECT id FROM recipes WHERE user_id = ${req.user.id} AND LOWER(name) = LOWER('${name.trim().replace(/'/g, "''")}')`);
     if (existing.rows.length)
       return res.status(409).json({ message: 'A recipe with this name already exists.' });
-    await db.execute({ sql: `INSERT INTO recipes (user_id, name, category, selling_price, selling_unit, description) VALUES (?, ?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), category.trim(), parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||''] });
+    await db.execute({ sql: `INSERT INTO recipes (user_id, name, product_id, selling_price, selling_unit, description) VALUES (?, ?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), productId||null, parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||''] });
     const idResult = await db.execute(`SELECT MAX(id) as id FROM recipes WHERE user_id = ${req.user.id}`);
     const recipeId = idResult.rows[0].id;
     for (const ing of ingredients) {
-      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [recipeId, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
+      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, ingredient_inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [recipeId, ing.ingredientInventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
     }
     return res.status(201).json({ message: 'Recipe created successfully.', recipeId });
   } catch (err) {
@@ -54,9 +54,9 @@ router.post('/', async (req, res) => {
 // PUT /api/recipes/:id
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, category, sellingPrice, sellingUnit, description, ingredients } = req.body;
-  if (!name || !category)
-    return res.status(400).json({ message: 'Name and category are required.' });
+  const { name, productId, sellingPrice, sellingUnit, description, ingredients } = req.body;
+  if (!name)
+    return res.status(400).json({ message: 'Recipe name is required.' });
   if (!ingredients || ingredients.length === 0)
     return res.status(400).json({ message: 'Add at least one ingredient.' });
   try {
@@ -64,10 +64,10 @@ router.put('/:id', async (req, res) => {
     const owner = await db.execute(`SELECT id FROM recipes WHERE id = ${id} AND user_id = ${req.user.id}`);
     if (!owner.rows.length)
       return res.status(404).json({ message: 'Recipe not found.' });
-    await db.execute({ sql: `UPDATE recipes SET name=?, category=?, selling_price=?, selling_unit=?, description=?, updated_at=datetime('now') WHERE id=? AND user_id=?`, args: [name.trim(), category.trim(), parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||'', id, req.user.id] });
+    await db.execute({ sql: `UPDATE recipes SET name=?, product_id=?, selling_price=?, selling_unit=?, description=?, updated_at=datetime('now') WHERE id=? AND user_id=?`, args: [name.trim(), productId||null, parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||'', id, req.user.id] });
     await db.execute(`DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`);
     for (const ing of ingredients) {
-      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [id, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
+      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, ingredient_inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [id, ing.ingredientInventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
     }
     return res.json({ message: 'Recipe updated successfully.' });
   } catch (err) {

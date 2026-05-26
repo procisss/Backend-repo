@@ -94,6 +94,8 @@ router.delete('/delete-account', requireAuth, async (req, res) => {
   try {
     const db = await getDb();
     const id = req.user.id;
+
+    // Delete all related data first
     await db.execute(`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id = ${id})`);
     await db.execute(`DELETE FROM orders WHERE user_id = ${id}`);
     await db.execute(`DELETE FROM recipe_ingredients WHERE recipe_id IN (SELECT id FROM recipes WHERE user_id = ${id})`);
@@ -104,7 +106,10 @@ router.delete('/delete-account', requireAuth, async (req, res) => {
     await db.execute(`DELETE FROM manual_alerts WHERE user_id = ${id}`);
     await db.execute(`DELETE FROM subscriptions WHERE user_id = ${id}`);
     await db.execute(`DELETE FROM upgrade_requests WHERE user_id = ${id}`);
+
+    // Delete the user account itself
     await db.execute(`DELETE FROM users WHERE id = ${id}`);
+
     return res.json({ message: 'Account deleted successfully.' });
   } catch (err) {
     console.error('[DELETE /auth/delete-account]', err);

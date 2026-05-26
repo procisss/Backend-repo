@@ -37,12 +37,12 @@ router.post('/orders', async (req, res) => {
       const subtotal = item.unitPrice * item.quantity;
       await db.execute({ sql: `INSERT INTO order_items (order_id, recipe_id, name, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?, ?)`, args: [orderId, item.recipeId, item.name, item.quantity, item.unitPrice, +subtotal.toFixed(2)] });
     }
-    // Auto-deduct ingredients
+    // Auto-deduct ingredients from ingredient_inventory
     for (const item of items) {
-      const ingResult = await db.execute(`SELECT ri.inventory_id, ri.quantity as ing_qty FROM recipe_ingredients ri WHERE ri.recipe_id = ${item.recipeId} AND ri.inventory_id IS NOT NULL`);
+      const ingResult = await db.execute(`SELECT ri.ingredient_inventory_id, ri.quantity as ing_qty FROM recipe_ingredients ri WHERE ri.recipe_id = ${item.recipeId} AND ri.ingredient_inventory_id IS NOT NULL`);
       for (const ing of ingResult.rows) {
         const deductQty = parseFloat(ing.ing_qty) * item.quantity;
-        await db.execute({ sql: `UPDATE inventory SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') WHERE id = ?`, args: [deductQty, ing.inventory_id] });
+        await db.execute({ sql: `UPDATE ingredient_inventory SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') WHERE id = ?`, args: [deductQty, ing.ingredient_inventory_id] });
       }
     }
     return res.status(201).json({ message: 'Order completed successfully.', orderId, total: +total.toFixed(2), change: +change.toFixed(2) });
