@@ -51,10 +51,8 @@ router.post('/', async (req, res) => {
     ingredients
   } = req.body;
 
-  if (!name || !category)
-    return res.status(400).json({
-      message: 'Name and category are required.'
-    });
+  if (!productName)
+  return res.status(400).json({ message: 'Product name is required.' });
 
   if (!ingredients || ingredients.length === 0)
     return res.status(400).json({
