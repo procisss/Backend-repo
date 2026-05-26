@@ -51,9 +51,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// PUT /api/recipes/:id
-router.put('/:id', async (req, res) => {
-  const { id } = req.params;
+// POST /api/recipes
+router.post('/', async (req, res) => {
   const { name, category, sellingPrice, sellingUnit, description, ingredients } = req.body;
   if (!name || !category)
     return res.status(400).json({ message: 'Name and category are required.' });
@@ -61,17 +60,18 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ message: 'Add at least one ingredient.' });
   try {
     const db = await getDb();
-    const owner = await db.execute(`SELECT id FROM recipes WHERE id = ${id} AND user_id = ${req.user.id}`);
-    if (!owner.rows.length)
-      return res.status(404).json({ message: 'Recipe not found.' });
-    await db.execute({ sql: `UPDATE recipes SET name=?, category=?, selling_price=?, selling_unit=?, description=?, updated_at=datetime('now') WHERE id=? AND user_id=?`, args: [name.trim(), category.trim(), parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||'', id, req.user.id] });
-    await db.execute(`DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`);
+    const existing = await db.execute(`SELECT id FROM recipes WHERE user_id = ${req.user.id} AND LOWER(name) = LOWER('${name.trim().replace(/'/g, "''")}')`);
+    if (existing.rows.length)
+      return res.status(409).json({ message: 'A recipe with this name already exists.' });
+    await db.execute({ sql: `INSERT INTO recipes (user_id, name, category, selling_price, selling_unit, description) VALUES (?, ?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), category.trim(), parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||''] });
+    const idResult = await db.execute(`SELECT MAX(id) as id FROM recipes WHERE user_id = ${req.user.id}`);
+    const recipeId = idResult.rows[0].id;
     for (const ing of ingredients) {
-      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [id, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
+      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [recipeId, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
     }
-    return res.json({ message: 'Recipe updated successfully.' });
+    return res.status(201).json({ message: 'Recipe created successfully.', recipeId });
   } catch (err) {
-    console.error('[PUT /recipes/:id]', err);
+    console.error('[POST /recipes]', err);
     return res.status(500).json({ message: 'Server error.' });
   }
 });
