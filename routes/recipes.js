@@ -8,10 +8,8 @@ router.use(requireAuth);
 
 async function getIngredients(db, recipeId) {
   const result = await db.execute(
-    `SELECT * FROM recipe_ingredients WHERE recipe_id = ?`,
-    [recipeId]
+    `SELECT * FROM recipe_ingredients WHERE recipe_id = ${recipeId}`
   );
-
   return result.rows;
 }
 
@@ -21,22 +19,16 @@ router.get('/', async (req, res) => {
     const db = await getDb();
 
     const result = await db.execute(
-      `SELECT * FROM recipes WHERE user_id = ? ORDER BY name ASC`,
-      [req.user.id]
+      `SELECT * FROM recipes WHERE user_id = ${req.user.id} ORDER BY name ASC`
     );
 
-    if (!result.rows.length) {
+    if (!result.rows.length)
       return res.json({ recipes: [] });
-    }
 
     const recipes = await Promise.all(
       result.rows.map(async (recipe) => {
         const ingredients = await getIngredients(db, recipe.id);
-
-        return {
-          ...recipe,
-          ingredients,
-        };
+        return { ...recipe, ingredients };
       })
     );
 
@@ -59,40 +51,33 @@ router.post('/', async (req, res) => {
     ingredients
   } = req.body;
 
-  if (!name || !category) {
+  if (!name || !category)
     return res.status(400).json({
       message: 'Name and category are required.'
     });
-  }
 
-  if (!ingredients || ingredients.length === 0) {
+  if (!ingredients || ingredients.length === 0)
     return res.status(400).json({
       message: 'Add at least one ingredient.'
     });
-  }
 
   try {
     const db = await getDb();
 
-    const existing = await db.execute({
-      sql: `
-        SELECT id
-        FROM recipes
-        WHERE user_id = ?
-        AND LOWER(name) = LOWER(?)
-      `,
-      args: [req.user.id, name.trim()]
-    });
+    const existing = await db.execute(
+      `SELECT id FROM recipes 
+       WHERE user_id = ${req.user.id} 
+       AND LOWER(name) = LOWER('${name.trim().replace(/'/g, "''")}')`
+    );
 
-    if (existing.rows.length) {
+    if (existing.rows.length)
       return res.status(409).json({
         message: 'A recipe with this name already exists.'
       });
-    }
 
     await db.execute({
       sql: `
-        INSERT INTO recipes
+        INSERT INTO recipes 
         (user_id, name, category, selling_price, selling_unit, description)
         VALUES (?, ?, ?, ?, ?, ?)
       `,
@@ -106,10 +91,9 @@ router.post('/', async (req, res) => {
       ]
     });
 
-    const idResult = await db.execute({
-      sql: `SELECT MAX(id) as id FROM recipes WHERE user_id = ?`,
-      args: [req.user.id]
-    });
+    const idResult = await db.execute(
+      `SELECT MAX(id) as id FROM recipes WHERE user_id = ${req.user.id}`
+    );
 
     const recipeId = idResult.rows[0].id;
 
@@ -154,36 +138,27 @@ router.put('/:id', async (req, res) => {
     ingredients
   } = req.body;
 
-  if (!name || !category) {
+  if (!name || !category)
     return res.status(400).json({
       message: 'Name and category are required.'
     });
-  }
 
-  if (!ingredients || ingredients.length === 0) {
+  if (!ingredients || ingredients.length === 0)
     return res.status(400).json({
       message: 'Add at least one ingredient.'
     });
-  }
 
   try {
     const db = await getDb();
 
-    const owner = await db.execute({
-      sql: `
-        SELECT id
-        FROM recipes
-        WHERE id = ?
-        AND user_id = ?
-      `,
-      args: [id, req.user.id]
-    });
+    const owner = await db.execute(
+      `SELECT id FROM recipes WHERE id = ${id} AND user_id = ${req.user.id}`
+    );
 
-    if (!owner.rows.length) {
+    if (!owner.rows.length)
       return res.status(404).json({
         message: 'Recipe not found.'
       });
-    }
 
     await db.execute({
       sql: `
@@ -195,8 +170,7 @@ router.put('/:id', async (req, res) => {
           selling_unit = ?,
           description = ?,
           updated_at = datetime('now')
-        WHERE id = ?
-        AND user_id = ?
+        WHERE id = ? AND user_id = ?
       `,
       args: [
         name.trim(),
@@ -209,10 +183,9 @@ router.put('/:id', async (req, res) => {
       ]
     });
 
-    await db.execute({
-      sql: `DELETE FROM recipe_ingredients WHERE recipe_id = ?`,
-      args: [id]
-    });
+    await db.execute(
+      `DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`
+    );
 
     for (const ing of ingredients) {
       await db.execute({
@@ -248,35 +221,22 @@ router.delete('/:id', async (req, res) => {
   try {
     const db = await getDb();
 
-    const owner = await db.execute({
-      sql: `
-        SELECT id
-        FROM recipes
-        WHERE id = ?
-        AND user_id = ?
-      `,
-      args: [id, req.user.id]
-    });
+    const owner = await db.execute(
+      `SELECT id FROM recipes WHERE id = ${id} AND user_id = ${req.user.id}`
+    );
 
-    if (!owner.rows.length) {
+    if (!owner.rows.length)
       return res.status(404).json({
         message: 'Recipe not found.'
       });
-    }
 
-    await db.execute({
-      sql: `DELETE FROM recipe_ingredients WHERE recipe_id = ?`,
-      args: [id]
-    });
+    await db.execute(
+      `DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`
+    );
 
-    await db.execute({
-      sql: `
-        DELETE FROM recipes
-        WHERE id = ?
-        AND user_id = ?
-      `,
-      args: [id, req.user.id]
-    });
+    await db.execute(
+      `DELETE FROM recipes WHERE id = ${id} AND user_id = ${req.user.id}`
+    );
 
     return res.json({
       message: 'Recipe deleted successfully.'
