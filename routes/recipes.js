@@ -38,7 +38,7 @@ router.post('/', async (req, res) => {
     const existing = await db.execute(`SELECT id FROM recipes WHERE user_id = ${req.user.id} AND LOWER(name) = LOWER('${name.trim().replace(/'/g, "''")}')`);
     if (existing.rows.length)
       return res.status(409).json({ message: 'A recipe with this name already exists.' });
-    await db.execute({ sql: `INSERT INTO recipes (user_id, name, product_id, selling_price, selling_unit, description) VALUES (?, ?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), productId||null, parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||''] });
+    await db.execute({ sql: `INSERT INTO recipes (user_id, name, category, product_id, selling_price, selling_unit, description) VALUES (?, ?, ?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), '', productId||null, parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||''] });
     const idResult = await db.execute(`SELECT MAX(id) as id FROM recipes WHERE user_id = ${req.user.id}`);
     const recipeId = idResult.rows[0].id;
     for (const ing of ingredients) {
