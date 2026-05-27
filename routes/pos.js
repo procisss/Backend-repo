@@ -55,12 +55,12 @@ router.post('/orders', async (req, res) => {
       // --- Deduct Raw Materials (inventory) ---
       // Fetch ingredients mapped to this recipe
       const ingredientsResult = await db.execute({
-        sql: `SELECT ingredient_inventory_id, quantity FROM recipe_ingredients WHERE recipe_id = ?`,
+        sql: `SELECT inventory_id, quantity FROM recipe_ingredients WHERE recipe_id = ?`,
         args: [recipeId]
       });
 
       for (const ing of ingredientsResult.rows) {
-        if (ing.ingredient_inventory_id) {
+        if (ing.inventory_id) {
           // Total raw quantity to deduct = recipe amount * number of items ordered
           const totalDeduct = ing.quantity * orderQty;
 
@@ -68,7 +68,7 @@ router.post('/orders', async (req, res) => {
             sql: `UPDATE inventory 
                   SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') 
                   WHERE id = ? AND user_id = ?`,
-            args: [totalDeduct, ing.ingredient_inventory_id, uid]
+            args: [totalDeduct, ing.inventory_id, uid]
           });
         }
       }
