@@ -17,23 +17,38 @@ router.get('/', async (req, res) => {
     const yestRev    = yestRes.rows[0].revenue || 0;
     const yestOrders = yestRes.rows[0].orders  || 0;
 
-    const lowStockRes   = await db.execute(`SELECT COUNT(*) as cnt FROM inventory WHERE user_id = ${uid} AND quantity <= min_stock`);
-    const lowStockCount = lowStockRes.rows[0].cnt || 0;
+    const uRes = await db.execute(`SELECT plan FROM users WHERE id = ${uid}`);
+    const isPremium = uRes.rows[0]?.plan === 'premium';
 
-    const lowStockItemsRes = await db.execute(`SELECT name, quantity, min_stock, unit, CASE WHEN quantity <= 0 THEN 'critical' WHEN quantity <= min_stock THEN 'low' ELSE 'good' END as status FROM inventory WHERE user_id = ${uid} AND quantity <= min_stock ORDER BY quantity ASC LIMIT 5`);
-    const lowStockItems = lowStockItemsRes.rows.map(row => ({ name: row.name, quantity: row.quantity, minStock: row.min_stock, unit: row.unit, status: row.status }));
+    const prodRes = await db.execute(`SELECT name, quantity, min_stock, unit, CASE WHEN quantity <= 0 THEN 'critical' WHEN quantity <= min_stock THEN 'low' ELSE 'good' END as status FROM product_inventory WHERE user_id = ${uid} AND quantity <= min_stock`);
+    let lowStockRows = prodRes.rows;
+    if (isPremium) {
+      const ingRes = await db.execute(`SELECT name, quantity, min_stock, unit, CASE WHEN quantity <= 0 THEN 'critical' WHEN quantity <= min_stock THEN 'low' ELSE 'good' END as status FROM inventory WHERE user_id = ${uid} AND quantity <= min_stock`);
+      lowStockRows = [...lowStockRows, ...ingRes.rows];
+    }
+    lowStockRows.sort((a, b) => a.quantity - b.quantity);
+    
+    const lowStockCount = lowStockRows.length;
+    const lowStockItems = lowStockRows.slice(0, 5).map(row => ({ name: row.name, quantity: row.quantity, minStock: row.min_stock, unit: row.unit, status: row.status }));
 
     const topRes = await db.execute(`SELECT oi.name, SUM(oi.quantity) as units, SUM(oi.subtotal) as revenue FROM order_items oi JOIN orders o ON o.id = oi.order_id WHERE o.user_id = ${uid} GROUP BY oi.name ORDER BY units DESC LIMIT 5`);
     const topProducts = topRes.rows.map(row => ({ name: row.name, units: row.units, revenue: +parseFloat(row.revenue).toFixed(2) }));
 
-    const weeklyRes = await db.execute(`SELECT date(created_at) as day, SUM(total) as revenue FROM orders WHERE user_id = ${uid} AND created_at >= date('now', '-6 days') GROUP BY date(created_at) ORDER BY day ASC`);
+    const weeklyRes = await db.execute(`SELECT date(created_at) as day, SUM(total) as revenue FROM orders WHERE user_id = ${uid} AND created_at >= date('now', '-14 days') GROUP BY date(created_at) ORDER BY day ASC`);
     const weekMap = {};
     weeklyRes.rows.forEach(row => { weekMap[row.day] = row.revenue; });
+    
     const weeklyData = [];
-    for (let i = 6; i >= 0; i--) {
-      const d   = new Date(); d.setDate(d.getDate() - i);
+    const today = new Date();
+    const sunday = new Date(today);
+    sunday.setDate(today.getDate() - today.getDay());
+    
+    const dayNames = ['Sun', 'Mon', 'Tues', 'Wed', 'Thurs', 'Fri', 'Sat'];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(sunday);
+      d.setDate(sunday.getDate() + i);
       const key = d.toISOString().split('T')[0];
-      weeklyData.push({ label: d.toLocaleDateString('en-PH', { weekday: 'short' }), revenue: +(weekMap[key] || 0).toFixed(2) });
+      weeklyData.push({ label: dayNames[i], revenue: +(weekMap[key] || 0).toFixed(2) });
     }
 
     const catRes = await db.execute(`SELECT r.category, SUM(oi.subtotal) as revenue FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN recipes r ON r.id = oi.recipe_id WHERE o.user_id = ${uid} GROUP BY r.category ORDER BY revenue DESC`);

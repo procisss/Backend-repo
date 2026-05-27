@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
 
 // POST /api/recipes
 router.post('/', async (req, res) => {
-  const { name, category, sellingPrice, sellingUnit, description, ingredients } = req.body;
+  const { name, category, sellingPrice, sellingUnit, description, ingredients, initialStock, minStock } = req.body;
   if (!name || !category)
     return res.status(400).json({ message: 'Name and category are required.' });
   try {
@@ -39,6 +39,14 @@ router.post('/', async (req, res) => {
     await db.execute({ sql: `INSERT INTO recipes (user_id, name, category, selling_price, selling_unit, description) VALUES (?, ?, ?, ?, ?, ?)`, args: [req.user.id, name.trim(), category.trim(), parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||''] });
     const idResult = await db.execute(`SELECT MAX(id) as id FROM recipes WHERE user_id = ${req.user.id}`);
     const recipeId = idResult.rows[0].id;
+    
+    const qty = parseFloat(initialStock) || 0;
+    const minS = parseFloat(minStock) || 0;
+    await db.execute({
+      sql: `INSERT INTO product_inventory (user_id, recipe_id, name, category, quantity, unit, min_stock) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [req.user.id, recipeId, name.trim(), category.trim(), qty, sellingUnit || 'pcs', minS]
+    });
+
     for (const ing of ingredients) {
       await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [recipeId, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
     }
@@ -81,6 +89,7 @@ router.delete('/:id', async (req, res) => {
     if (!owner.rows.length)
       return res.status(404).json({ message: 'Product not found.' });
     await db.execute(`DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`);
+    await db.execute(`DELETE FROM product_inventory WHERE recipe_id = ${id}`);
     await db.execute(`DELETE FROM recipes WHERE id = ${id} AND user_id = ${req.user.id}`);
     return res.json({ message: 'Product deleted successfully.' });
   } catch (err) {

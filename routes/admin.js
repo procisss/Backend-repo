@@ -80,7 +80,7 @@ router.get('/usage', async (req, res) => {
       { name: 'Inventory',  v: (await db.execute(`SELECT COUNT(*) as cnt FROM inventory`)).rows[0].cnt || 0 },
       { name: 'Recipes',    v: (await db.execute(`SELECT COUNT(*) as cnt FROM recipes`)).rows[0].cnt || 0 },
       { name: 'Restocks',   v: (await db.execute(`SELECT COUNT(*) as cnt FROM restock_purchases`)).rows[0].cnt || 0 },
-      { name: 'Alerts',     v: (await db.execute(`SELECT COUNT(*) as cnt FROM manual_alerts`)).rows[0].cnt || 0 },
+      { name: 'Alerts',     v: (await db.execute(`SELECT COUNT(*) as cnt FROM alerts WHERE type='manual'`)).rows[0].cnt || 0 },
     ];
     return res.json({ dailyOrders, topUsers, featureUsage, totals: { users: t.users, orders: t.orders, revenue: +parseFloat(t.revenue).toFixed(2), recipes: t.recipes, inventory: t.inventory } });
   } catch (err) { return res.status(500).json({ message: 'Server error.' }); }

@@ -89,6 +89,25 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+// PUT /me - Update Profile
+router.put('/me', requireAuth, async (req, res) => {
+  if (req.user.role === 'admin') return res.status(403).json({ message: 'Admins cannot update profile here.' });
+  const { businessName, ownerName } = req.body;
+  if (!businessName) return res.status(400).json({ message: 'Business name is required.' });
+  
+  try {
+    const db = await getDb();
+    await db.execute({
+      sql: `UPDATE users SET business_name = ?, owner_name = ? WHERE id = ?`,
+      args: [businessName.trim(), ownerName?.trim() || null, req.user.id]
+    });
+    return res.json({ message: 'Profile updated successfully.' });
+  } catch (err) {
+    console.error('[PUT /me]', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
 // DELETE /api/auth/delete-account
 router.delete('/delete-account', requireAuth, async (req, res) => {
   try {
@@ -103,7 +122,7 @@ router.delete('/delete-account', requireAuth, async (req, res) => {
     await db.execute(`DELETE FROM inventory WHERE user_id = ${id}`);
     await db.execute(`DELETE FROM restock_items WHERE restock_purchase_id IN (SELECT id FROM restock_purchases WHERE user_id = ${id})`);
     await db.execute(`DELETE FROM restock_purchases WHERE user_id = ${id}`);
-    await db.execute(`DELETE FROM manual_alerts WHERE user_id = ${id}`);
+    await db.execute(`DELETE FROM alerts WHERE user_id = ${id}`);
     await db.execute(`DELETE FROM subscriptions WHERE user_id = ${id}`);
     await db.execute(`DELETE FROM upgrade_requests WHERE user_id = ${id}`);
 
