@@ -108,6 +108,24 @@ router.put('/me', requireAuth, async (req, res) => {
   }
 });
 
+// PUT /password - Update Password
+router.put('/password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Missing fields.' });
+  try {
+    const db = await getDb();
+    const userRes = await db.execute(`SELECT password_hash FROM users WHERE id = ${req.user.id}`);
+    const valid = await bcrypt.compare(currentPassword, userRes.rows[0].password_hash);
+    if (!valid) return res.status(401).json({ message: 'Incorrect current password.' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await db.execute({ sql: `UPDATE users SET password_hash = ? WHERE id = ?`, args: [hash, req.user.id] });
+    return res.json({ message: 'Password updated successfully.' });
+  } catch (err) {
+    console.error('[PUT /password]', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
 // DELETE /api/auth/delete-account
 router.delete('/delete-account', requireAuth, async (req, res) => {
   try {

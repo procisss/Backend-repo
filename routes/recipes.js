@@ -69,6 +69,7 @@ router.put('/:id', async (req, res) => {
     if (!owner.rows.length)
       return res.status(404).json({ message: 'Product not found.' });
     await db.execute({ sql: `UPDATE recipes SET name=?, category=?, selling_price=?, selling_unit=?, description=?, updated_at=datetime('now') WHERE id=? AND user_id=?`, args: [name.trim(), category.trim(), parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||'', id, req.user.id] });
+    await db.execute({ sql: `UPDATE product_inventory SET name=?, category=?, unit=? WHERE recipe_id=? AND user_id=?`, args: [name.trim(), category.trim(), sellingUnit||'pcs', id, req.user.id] });
     await db.execute(`DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`);
     for (const ing of ingredients) {
       await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [id, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
