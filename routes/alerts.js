@@ -76,7 +76,7 @@ router.get('/', async (req, res) => {
     }
 
     // 2. Fetch manual alerts (Enforce separation in frontend, or clear output if tier is downgraded)
-    const manualResult = await db.execute(`SELECT * FROM manual_alerts WHERE user_id = ${uid} ORDER BY created_at DESC`);
+    const manualResult = await db.execute(`SELECT * FROM alerts WHERE user_id = ${uid} AND type = 'manual' ORDER BY created_at DESC`);
     const manualAlerts = isPremium ? manualResult.rows.map(a => ({
       id: a.id,
       type: 'manual',
@@ -119,12 +119,47 @@ router.post('/', async (req, res) => {
     }
     
     await db.execute({
-      sql: `INSERT INTO manual_alerts (user_id, title, message, severity, status, created_at) VALUES (?, ?, ?, ?, 'active', datetime('now'))`,
+      sql: `INSERT INTO alerts (user_id, type, title, message, severity, status, created_at) VALUES (?, 'manual', ?, ?, ?, 'active', datetime('now'))`,
       args: [req.user.id, title.trim(), message ? message.trim() : null, severity || 'warning']
     });
-    const last = await db.execute(`SELECT id FROM manual_alerts WHERE user_id=${req.user.id} ORDER BY id DESC LIMIT 1`);
+    const last = await db.execute(`SELECT id FROM alerts WHERE user_id=${req.user.id} AND type='manual' ORDER BY id DESC LIMIT 1`);
     return res.status(201).json({ message: 'Alert created.', id: last.rows[0].id });
   } catch (err) {
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+router.put('/:id/resolve', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: 'Invalid alert id.' });
+  try {
+    const db = await getDb();
+    const result = await db.execute({
+      sql: `UPDATE alerts SET status = 'resolved', resolved_at = datetime('now')
+            WHERE id = ? AND user_id = ? AND type = 'manual'`,
+      args: [id, req.user.id]
+    });
+    if (result.rowsAffected === 0) return res.status(404).json({ message: 'Alert not found.' });
+    return res.json({ message: 'Alert resolved.' });
+  } catch (err) {
+    console.error('[PUT /alerts/:id/resolve]', err);
+    return res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ message: 'Invalid alert id.' });
+  try {
+    const db = await getDb();
+    const result = await db.execute({
+      sql: `DELETE FROM alerts WHERE id = ? AND user_id = ? AND type = 'manual'`,
+      args: [id, req.user.id]
+    });
+    if (result.rowsAffected === 0) return res.status(404).json({ message: 'Alert not found.' });
+    return res.json({ message: 'Alert deleted.' });
+  } catch (err) {
+    console.error('[DELETE /alerts/:id]', err);
     return res.status(500).json({ message: 'Server error.' });
   }
 });

@@ -35,47 +35,103 @@ router.post('/orders', async (req, res) => {
     const db = await getDb();
     const uid = req.user.id;
 
-    // 1. Calculate totals and create your order records...
-    // (Keep your existing order / order_items insert logic here)
-    // Let's assume order creation yields an orderId and total costs.
+    const orderItems = [];
+    for (const item of items) {
+      const orderQty = parseInt(item.quantity, 10) || 0;
+      const recipeId = parseInt(item.recipeId || item.id, 10);
+      const productInventoryId = item.productInventoryId ? parseInt(item.productInventoryId, 10) : null;
+
+      if (!recipeId || orderQty <= 0) {
+        return res.status(400).json({ message: 'Invalid order item.' });
+      }
+
+      const recipeResult = await db.execute({
+        sql: `SELECT id, name, selling_price FROM recipes WHERE id = ? AND user_id = ?`,
+        args: [recipeId, uid]
+      });
+
+      if (!recipeResult.rows.length) {
+        return res.status(404).json({ message: `Product not found for recipe ${recipeId}.` });
+      }
+
+      const recipe = recipeResult.rows[0];
+      const stockResult = await db.execute({
+        sql: `SELECT id, quantity FROM product_inventory WHERE user_id = ? AND (recipe_id = ? OR id = ?) LIMIT 1`,
+        args: [uid, recipeId, productInventoryId || -1]
+      });
+
+      if (stockResult.rows.length && Number(stockResult.rows[0].quantity) < orderQty) {
+        return res.status(400).json({ message: `${recipe.name} only has ${stockResult.rows[0].quantity} left in stock.` });
+      }
+
+      const unitPrice = parseFloat(item.unitPrice ?? recipe.selling_price) || 0;
+      orderItems.push({
+        recipeId,
+        productInventoryId,
+        name: recipe.name,
+        quantity: orderQty,
+        unitPrice,
+        subtotal: +(unitPrice * orderQty).toFixed(2)
+      });
+    }
+
+    const total = +orderItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2);
+    const paid = paymentMethod === 'Cash' ? (parseFloat(amountPaid) || 0) : total;
+    const change = paymentMethod === 'Cash' ? Math.max(0, paid - total) : 0;
+
+    if (paymentMethod === 'Cash' && paid < total) {
+      return res.status(400).json({ message: 'Amount paid is less than the order total.' });
+    }
+
+    await db.execute({
+      sql: `INSERT INTO orders (user_id, total, payment_method, amount_paid, change_given, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'completed', datetime('now'))`,
+      args: [uid, total, paymentMethod || 'Cash', paid, +change.toFixed(2)]
+    });
+    const orderIdResult = await db.execute(`SELECT id FROM orders WHERE user_id = ${uid} ORDER BY id DESC LIMIT 1`);
+    const orderId = orderIdResult.rows[0].id;
 
     // 2. Loop over every item sold in the POS to deduct stock
-    for (const item of items) {
-      const orderQty = parseInt(item.quantity) || 0;
-      const recipeId = item.recipeId || item.id; // Make sure this matches your frontend payload key
+    for (const item of orderItems) {
+      await db.execute({
+        sql: `INSERT INTO order_items (order_id, recipe_id, name, quantity, unit_price, subtotal)
+              VALUES (?, ?, ?, ?, ?, ?)`,
+        args: [orderId, item.recipeId, item.name, item.quantity, item.unitPrice, item.subtotal]
+      });
 
       // --- Deduct Pre-made Stock (product_inventory) ---
       await db.execute({
         sql: `UPDATE product_inventory 
               SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') 
-              WHERE recipe_id = ? AND user_id = ?`,
-        args: [orderQty, recipeId, uid]
+              WHERE user_id = ? AND (recipe_id = ? OR id = ?)`,
+        args: [item.quantity, uid, item.recipeId, item.productInventoryId || -1]
       });
 
       // --- Deduct Raw Materials (inventory) ---
       // Fetch ingredients mapped to this recipe
       const ingredientsResult = await db.execute({
-        sql: `SELECT inventory_id, quantity FROM recipe_ingredients WHERE recipe_id = ?`,
-        args: [recipeId]
+        sql: `SELECT inventory_id, ingredient_inventory_id, quantity FROM recipe_ingredients WHERE recipe_id = ?`,
+        args: [item.recipeId]
       });
 
       for (const ing of ingredientsResult.rows) {
-        if (ing.inventory_id) {
+        const inventoryId = ing.inventory_id || ing.ingredient_inventory_id;
+        if (inventoryId) {
           // Total raw quantity to deduct = recipe amount * number of items ordered
-          const totalDeduct = ing.quantity * orderQty;
+          const totalDeduct = ing.quantity * item.quantity;
 
           await db.execute({
             sql: `UPDATE inventory 
                   SET quantity = MAX(0, quantity - ?), updated_at = datetime('now') 
                   WHERE id = ? AND user_id = ?`,
-            args: [totalDeduct, ing.inventory_id, uid]
+            args: [totalDeduct, inventoryId, uid]
           });
         }
       }
     }
 
     // Return your success response matching your current frontend expectations
-    return res.status(201).json({ message: 'Order completed successfully.' });
+    return res.status(201).json({ message: 'Order completed successfully.', orderId, total, change: +change.toFixed(2) });
 
   } catch (err) {
     console.error('[POST /pos/orders]', err);
