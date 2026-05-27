@@ -40,7 +40,7 @@ router.post('/', async (req, res) => {
     const idResult = await db.execute(`SELECT MAX(id) as id FROM recipes WHERE user_id = ${req.user.id}`);
     const recipeId = idResult.rows[0].id;
     for (const ing of ingredients) {
-      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [recipeId, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
+      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, ingredient_inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [recipeId, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
     }
     return res.status(201).json({ message: 'Product created successfully.', recipeId });
   } catch (err) {
@@ -63,7 +63,7 @@ router.put('/:id', async (req, res) => {
     await db.execute({ sql: `UPDATE recipes SET name=?, category=?, selling_price=?, selling_unit=?, description=?, updated_at=datetime('now') WHERE id=? AND user_id=?`, args: [name.trim(), category.trim(), parseFloat(sellingPrice)||0, sellingUnit||'pcs', description||'', id, req.user.id] });
     await db.execute(`DELETE FROM recipe_ingredients WHERE recipe_id = ${id}`);
     for (const ing of ingredients) {
-      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [id, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
+      await db.execute({ sql: `INSERT INTO recipe_ingredients (recipe_id, ingredient_inventory_id, name, quantity, unit) VALUES (?, ?, ?, ?, ?)`, args: [id, ing.inventoryId||null, ing.name.trim(), parseFloat(ing.quantity)||0, ing.unit||'pcs'] });
     }
     return res.json({ message: 'Product updated successfully.' });
   } catch (err) {
